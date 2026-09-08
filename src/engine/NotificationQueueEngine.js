@@ -1,34 +1,32 @@
 /**
- * Cloud-Based Notification Engine
- * Simulates an Event-Driven Architecture with Message Queue (SQS/RabbitMQ),
- * Serverless Worker Pool (AWS Lambda / GCP Functions), and multi-channel delivery provider.
+ * EventSignal Notification Engine
+ * Simulates an event-driven architecture with a message queue,
+ * worker pool, and multi-channel delivery providers.
  */
 
 export class NotificationQueueEngine {
   constructor() {
-    this.queue = [];             // Active queue items awaiting or in processing
-    this.completed = [];         // Successfully delivered messages
-    this.dlq = [];               // Dead Letter Queue for failed messages after max retries
-    this.workers = [];           // Serverless workers status
-    this.workerCount = 4;        // Default active worker concurrency
-    this.listeners = new Set();  // React subscribers
+    this.queue = [];
+    this.completed = [];
+    this.dlq = [];
+    this.workers = [];
+    this.workerCount = 4;
+    this.listeners = new Set();
     this.isRunning = true;
-    
-    // Configurable simulated network settings
+
     this.config = {
-      failureRate: 0.05,         // 5% simulated random API gateway drops
+      failureRate: 0.05,
       maxRetries: 3,
-      workerSpeedMs: 1200,       // Time per worker job processing
+      workerSpeedMs: 1200,
       jitterMs: 400,
       autoRateLimit: false,
       channels: {
-        email: { provider: 'SendGrid Cloud SMTP', status: 'healthy', latency: '45ms' },
-        sms: { provider: 'Twilio Gateway API', status: 'healthy', latency: '120ms' },
-        push: { provider: 'Firebase Cloud Messaging (FCM)', status: 'healthy', latency: '25ms' }
+        email: { provider: 'SendGrid SMTP', status: 'healthy', latency: '45ms' },
+        sms: { provider: 'Twilio API', status: 'healthy', latency: '120ms' },
+        push: { provider: 'Firebase FCM', status: 'healthy', latency: '25ms' }
       }
     };
 
-    // Telemetry Stats
     this.stats = {
       totalDispatched: 0,
       totalDelivered: 0,
@@ -44,9 +42,9 @@ export class NotificationQueueEngine {
   }
 
   initWorkers() {
-    this.workers = Array.from({ length: this.workerCount }, (_, i) => ({
-      id: `lambda-worker-${String(i + 1).padStart(2, '0')}`,
-      status: 'idle', // 'idle' | 'processing' | 'cooldown'
+    this.workers = Array.from({ length: this.workerCount }, (_, idx) => ({
+      id: `worker-${String(idx + 1).padStart(2, '0')}`,
+      status: 'idle',
       currentJob: null,
       jobsCompleted: 0
     }));
@@ -54,10 +52,11 @@ export class NotificationQueueEngine {
 
   setWorkerCount(count) {
     this.workerCount = Math.max(1, Math.min(20, count));
+
     if (this.workers.length < this.workerCount) {
-      for (let i = this.workers.length; i < this.workerCount; i++) {
+      for (let idx = this.workers.length; idx < this.workerCount; idx++) {
         this.workers.push({
-          id: `lambda-worker-${String(i + 1).padStart(2, '0')}`,
+          id: `worker-${String(idx + 1).padStart(2, '0')}`,
           status: 'idle',
           currentJob: null,
           jobsCompleted: 0
@@ -95,9 +94,6 @@ export class NotificationQueueEngine {
     };
   }
 
-  /**
-   * Dispatch a new notification event into the queue system
-   */
   dispatch({ channel, recipient, subject, body, priority = 'NORMAL', event = 'custom.event', phone = '', metadata = {} }) {
     const id = 'msg_' + Math.random().toString(36).substring(2, 10);
     const createdAt = new Date().toISOString();
@@ -105,23 +101,22 @@ export class NotificationQueueEngine {
     const job = {
       id,
       event,
-      channel, // 'email' | 'sms' | 'push'
+      channel,
       recipient,
       phone: phone || recipient,
       subject,
       body,
-      priority, // 'LOW' | 'NORMAL' | 'HIGH' | 'CRITICAL'
-      status: 'queued', // 'queued' | 'processing' | 'sent' | 'delivered' | 'failed' | 'retrying'
+      priority,
+      status: 'queued',
       attempts: 0,
       maxRetries: this.config.maxRetries,
       createdAt,
       updatedAt: createdAt,
       assignedWorker: null,
-      logs: [{ timestamp: new Date().toLocaleTimeString(), text: `Event '${event}' published to topic [channel:${channel}]` }],
+      logs: [{ timestamp: new Date().toLocaleTimeString(), text: `Event '${event}' published [channel:${channel}]` }],
       metadata
     };
 
-    // High and Critical priority get pushed to front of queue
     if (priority === 'CRITICAL' || priority === 'HIGH') {
       this.queue.unshift(job);
     } else {
@@ -134,33 +129,29 @@ export class NotificationQueueEngine {
     return job;
   }
 
-  /**
-   * Dispatch batch of events for load testing
-   */
   dispatchBatch(count = 10, channelFilter = 'all') {
     const channels = ['email', 'sms', 'push'];
     const events = ['user.signup', 'order.shipped', 'payment.failed', 'auth.mfa', 'system.alert'];
-    
-    for (let i = 0; i < count; i++) {
-      const channel = channelFilter === 'all' ? channels[Math.floor(Math.random() * channels.length)] : channelFilter;
+
+    for (let idx = 0; idx < count; idx++) {
+      const ch = channelFilter === 'all'
+        ? channels[Math.floor(Math.random() * channels.length)]
+        : channelFilter;
       const ev = events[Math.floor(Math.random() * events.length)];
       const idNum = Math.floor(1000 + Math.random() * 9000);
-      
+
       this.dispatch({
-        channel,
+        channel: ch,
         event: ev,
         recipient: `user_${idNum}@domain.com`,
         phone: `+1 (555) 01${Math.floor(10 + Math.random() * 89)}-${idNum}`,
-        subject: `[Batch #${i+1}] Alert regarding ${ev}`,
-        body: `Automated event payload generated for batch simulation test #${i+1}.`,
-        priority: i % 4 === 0 ? 'HIGH' : 'NORMAL'
+        subject: `[Batch #${idx + 1}] Alert: ${ev}`,
+        body: `Auto-generated event payload for batch test #${idx + 1}.`,
+        priority: idx % 4 === 0 ? 'HIGH' : 'NORMAL'
       });
     }
   }
 
-  /**
-   * Main asynchronous queue tick processing loop
-   */
   startLoop() {
     this.intervalId = setInterval(() => {
       if (!this.isRunning) return;
@@ -171,18 +162,15 @@ export class NotificationQueueEngine {
   processQueue() {
     if (this.queue.length === 0) return;
 
-    // Find available idle workers
     const idleWorkers = this.workers.filter(w => w.status === 'idle');
     if (idleWorkers.length === 0) return;
 
-    // Pick top job from queue
-    const queuedJobIndex = this.queue.findIndex(j => j.status === 'queued' || j.status === 'retrying');
-    if (queuedJobIndex === -1) return;
+    const jobIndex = this.queue.findIndex(j => j.status === 'queued' || j.status === 'retrying');
+    if (jobIndex === -1) return;
 
-    const job = this.queue[queuedJobIndex];
+    const job = this.queue[jobIndex];
     const worker = idleWorkers[0];
 
-    // Assign job to worker
     job.status = 'processing';
     job.assignedWorker = worker.id;
     job.updatedAt = new Date().toISOString();
@@ -197,59 +185,53 @@ export class NotificationQueueEngine {
 
     this.notify();
 
-    // Calculate simulated processing time with latency jitter
-    const processTime = this.config.workerSpeedMs + (Math.random() * this.config.jitterMs - this.config.jitterMs / 2);
+    const processTime = this.config.workerSpeedMs +
+      (Math.random() * this.config.jitterMs - this.config.jitterMs / 2);
 
     setTimeout(() => {
-      this.finishJobProcessing(job, worker);
+      this.completeJob(job, worker);
     }, Math.max(300, processTime));
   }
 
-  finishJobProcessing(job, worker) {
-    const isSimulatedFailure = Math.random() < this.config.failureRate;
+  completeJob(job, worker) {
+    const didFail = Math.random() < this.config.failureRate;
 
-    if (!isSimulatedFailure) {
-      // SUCCESSFUL DELIVERY
+    if (!didFail) {
       job.status = 'delivered';
       job.updatedAt = new Date().toISOString();
       job.logs.push({
         timestamp: new Date().toLocaleTimeString(),
-        text: `Successfully dispatched via ${this.config.channels[job.channel]?.provider || job.channel.toUpperCase()}`
+        text: `Delivered via ${this.config.channels[job.channel]?.provider || job.channel.toUpperCase()}`
       });
 
-      // Remove from queue and add to completed
       this.queue = this.queue.filter(j => j.id !== job.id);
       this.completed.unshift(job);
-      if (this.completed.length > 200) this.completed.pop(); // Keep array bounded
+      if (this.completed.length > 200) this.completed.pop();
 
       this.stats.totalDelivered++;
-      
-      // Calculate latency
-      const createdTime = new Date(job.createdAt).getTime();
-      const deliveredTime = new Date(job.updatedAt).getTime();
-      const latency = deliveredTime - createdTime;
-      this.stats.avgLatencyMs = this.stats.avgLatencyMs === 0 
-        ? latency 
-        : Math.round(this.stats.avgLatencyMs * 0.8 + latency * 0.2);
 
+      const createdMs = new Date(job.createdAt).getTime();
+      const deliveredMs = new Date(job.updatedAt).getTime();
+      const latency = deliveredMs - createdMs;
+      this.stats.avgLatencyMs = this.stats.avgLatencyMs === 0
+        ? latency
+        : Math.round(this.stats.avgLatencyMs * 0.8 + latency * 0.2);
     } else {
-      // FAILURE ENCOUNTERED
       if (job.attempts <= job.maxRetries) {
         job.status = 'retrying';
         job.updatedAt = new Date().toISOString();
         const backoffSec = Math.pow(2, job.attempts);
         job.logs.push({
           timestamp: new Date().toLocaleTimeString(),
-          text: `⚠️ API Gateway Error. Scheduling retry #${job.attempts} in ${backoffSec}s (Exponential Backoff)`
+          text: `API Error. Retry #${job.attempts} in ${backoffSec}s (Exponential Backoff)`
         });
         this.stats.totalRetried++;
       } else {
-        // EXCEEDED MAX RETRIES -> MOVE TO DEAD LETTER QUEUE (DLQ)
         job.status = 'failed';
         job.updatedAt = new Date().toISOString();
         job.logs.push({
           timestamp: new Date().toLocaleTimeString(),
-          text: `🚨 Max retries exceeded (${job.maxRetries}). Message routed to Dead Letter Queue (DLQ).`
+          text: `Max retries exceeded (${job.maxRetries}). Moved to DLQ.`
         });
 
         this.queue = this.queue.filter(j => j.id !== job.id);
@@ -258,7 +240,6 @@ export class NotificationQueueEngine {
       }
     }
 
-    // Release worker back to idle
     worker.status = 'idle';
     worker.currentJob = null;
     worker.jobsCompleted++;
@@ -266,19 +247,16 @@ export class NotificationQueueEngine {
     this.notify();
   }
 
-  /**
-   * Replay a message from DLQ back into the active queue
-   */
   retryDLQMessage(id) {
-    const itemIndex = this.dlq.findIndex(j => j.id === id);
-    if (itemIndex === -1) return;
+    const idx = this.dlq.findIndex(j => j.id === id);
+    if (idx === -1) return;
 
-    const [job] = this.dlq.splice(itemIndex, 1);
+    const [job] = this.dlq.splice(idx, 1);
     job.status = 'queued';
     job.attempts = 0;
     job.logs.push({
       timestamp: new Date().toLocaleTimeString(),
-      text: `Manually replayed from Dead Letter Queue by operator.`
+      text: `Manually replayed from DLQ by operator.`
     });
 
     this.queue.unshift(job);
@@ -312,5 +290,4 @@ export class NotificationQueueEngine {
   }
 }
 
-// Global instance export for app
 export const queueEngine = new NotificationQueueEngine();
