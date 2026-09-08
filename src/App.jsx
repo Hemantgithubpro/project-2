@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { queueEngine } from './engine/NotificationQueueEngine';
 import { Header } from './components/Header';
 import { DispatchConsole } from './components/DispatchConsole';
@@ -11,32 +11,30 @@ export function App() {
   const [engineState, setEngineState] = useState(queueEngine.getState());
 
   useEffect(() => {
-    // Subscribe to engine state updates
-    const unsubscribe = queueEngine.subscribe((newState) => {
-      setEngineState(newState);
+    const unsub = queueEngine.subscribe((updated) => {
+      setEngineState(updated);
     });
-    return unsubscribe;
+    return unsub;
   }, []);
 
+  const layoutStyle = {
+    minHeight: '100vh',
+    display: 'flex',
+    flexDirection: 'column'
+  };
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={layoutStyle}>
       <Header state={engineState} />
 
       <main className="main-layout">
-        {/* Top Level System Telemetry */}
         <MetricsDashboard state={engineState} />
-
-        {/* Architecture & Flow Visualization */}
         <QueueArchitectureView state={engineState} />
 
-        {/* Main Workspace Split Grid */}
         <div className="dashboard-grid">
-          {/* Left Column: Event Dispatch Console */}
           <div>
             <DispatchConsole />
           </div>
-
-          {/* Right Column: Live Telemetry Audit Log & Device Mockups */}
           <div>
             <DeviceSimulators state={engineState} />
             <LiveDeliveryTracker state={engineState} />
