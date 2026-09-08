@@ -91,9 +91,3 @@ eventsignal/
 ├── vite.config.js                    # Vite configuration
 └── package.json                      # Dependencies & scripts
 ```
-
----
-
-## License
-
-MIT License 2026 EventSignal
